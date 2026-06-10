@@ -33,6 +33,17 @@ python scripts/validate_dxf.py --help
 python scripts/audit_manuscript_claims.py --help
 ```
 
+## Local Smoke Test
+
+Run this before pushing changes:
+
+```bash
+python -m py_compile scripts/*.py colab/*.py tests/smoke_test.py
+python tests/smoke_test.py
+```
+
+The smoke tests use tiny fixtures in `tests/fixtures/`. They do not validate scientific performance; they only confirm that the evaluation tools still run and produce structurally sensible outputs.
+
 ## Expected Data Format
 
 The canonical layout format is JSONL:

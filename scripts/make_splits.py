@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import random
 from collections import defaultdict
 from pathlib import Path
@@ -36,13 +37,32 @@ def read_jsonl(path: Path) -> list[dict]:
     return rows
 
 
-def assign_splits(groups: list[str], train: float, val: float, seed: int) -> dict[str, str]:
+def split_counts(n: int, ratios: dict[str, float]) -> dict[str, int]:
+    raw = {name: n * ratio for name, ratio in ratios.items()}
+    counts = {name: math.floor(value) for name, value in raw.items()}
+    remaining = n - sum(counts.values())
+    order = sorted(ratios, key=lambda name: (raw[name] - counts[name], ratios[name]), reverse=True)
+    for name in order[:remaining]:
+        counts[name] += 1
+
+    positive = [name for name, ratio in ratios.items() if ratio > 0]
+    if n >= len(positive):
+        for name in positive:
+            if counts[name] == 0:
+                donor = max((d for d in positive if counts[d] > 1), key=lambda d: counts[d])
+                counts[donor] -= 1
+                counts[name] += 1
+    return counts
+
+
+def assign_splits(groups: list[str], train: float, val: float, test: float, seed: int) -> dict[str, str]:
     rng = random.Random(seed)
     shuffled = groups[:]
     rng.shuffle(shuffled)
     n = len(shuffled)
-    n_train = round(n * train)
-    n_val = round(n * val)
+    counts = split_counts(n, {"train": train, "val": val, "test": test})
+    n_train = counts["train"]
+    n_val = counts["val"]
     train_set = set(shuffled[:n_train])
     val_set = set(shuffled[n_train : n_train + n_val])
     split_by_group = {}
@@ -84,7 +104,7 @@ def main() -> None:
         groups_to_rows[group].append(row)
 
     split_by_group = assign_splits(
-        sorted(groups_to_rows), args.train_ratio, args.val_ratio, args.seed
+        sorted(groups_to_rows), args.train_ratio, args.val_ratio, args.test_ratio, args.seed
     )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)

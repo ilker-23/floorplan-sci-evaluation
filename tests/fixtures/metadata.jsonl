@@ -1,0 +1,4 @@
+{"plan_id":"p001","family_id":"f001","rooms":[{"id":"living","type":"LivingRoom","box":[0.00,0.00,0.50,0.50]}],"edges":[]}
+{"plan_id":"p002","family_id":"f002","rooms":[{"id":"living","type":"LivingRoom","box":[0.10,0.10,0.60,0.55]}],"edges":[]}
+{"plan_id":"p003","family_id":"f003","rooms":[{"id":"living","type":"LivingRoom","box":[0.20,0.20,0.60,0.60]}],"edges":[]}
+{"plan_id":"p004","family_id":"f004","rooms":[{"id":"living","type":"LivingRoom","box":[0.30,0.30,0.70,0.70]}],"edges":[]}
