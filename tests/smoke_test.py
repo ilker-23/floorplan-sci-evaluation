@@ -123,10 +123,35 @@ def test_layout_schema_validation(tmp: Path) -> None:
     assert summary["min_rooms"] == 3
 
 
+def test_prediction_set_validation(tmp: Path) -> None:
+    out = tmp / "prediction_set.json"
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/validate_prediction_set.py",
+            "--ground-truth",
+            str(FIX / "layout_gt.jsonl"),
+            "--predictions",
+            str(FIX / "layout_pred.jsonl"),
+            "--split-assignments",
+            str(FIX / "split_assignments.csv"),
+            "--split",
+            "test",
+            "--output-json",
+            str(out),
+        ]
+    )
+    summary = read_json(out)
+    assert summary["valid"] is True
+    assert summary["num_expected"] == 2
+    assert summary["num_missing_predictions"] == 0
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         test_layout_schema_validation(tmp)
+        test_prediction_set_validation(tmp)
         test_layout_metrics(tmp)
         test_architectural_rules(tmp)
         test_dxf_validation(tmp)

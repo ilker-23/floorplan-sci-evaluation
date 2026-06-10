@@ -29,6 +29,7 @@ Read:
 ```bash
 python scripts/make_splits.py --help
 python scripts/validate_layout_jsonl.py --help
+python scripts/validate_prediction_set.py --help
 python scripts/evaluate_layout_metrics.py --help
 python scripts/evaluate_architectural_rules.py --help
 python scripts/validate_dxf.py --help

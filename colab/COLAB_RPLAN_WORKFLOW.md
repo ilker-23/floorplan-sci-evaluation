@@ -106,6 +106,17 @@ outputs/predictions/MODEL_NAME_test.jsonl
 
 ## Colab Cell 7: Evaluate Layout Metrics
 
+First validate that predictions exactly match the frozen test split:
+
+```bash
+python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/scripts/validate_prediction_set.py \
+  --ground-truth "/content/drive/MyDrive/SASA-GAN_Buildings/outputs/test_ground_truth.jsonl" \
+  --predictions "/content/drive/MyDrive/SASA-GAN_Buildings/outputs/predictions/full_gatv2_test.jsonl" \
+  --split-assignments "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/splits/split_assignments.csv" \
+  --split test \
+  --output-json "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/prediction_set_full_gatv2_test.json"
+```
+
 ```bash
 python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/scripts/evaluate_layout_metrics.py \
   --ground-truth "/content/drive/MyDrive/SASA-GAN_Buildings/outputs/test_ground_truth.jsonl" \
