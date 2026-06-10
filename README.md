@@ -34,6 +34,7 @@ python scripts/validate_prediction_set.py --help
 python scripts/evaluate_layout_metrics.py --help
 python scripts/evaluate_architectural_rules.py --help
 python scripts/validate_dxf.py --help
+python scripts/aggregate_results.py --help
 python scripts/audit_manuscript_claims.py --help
 ```
 

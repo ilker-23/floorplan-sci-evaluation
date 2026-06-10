@@ -160,6 +160,20 @@ python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/scripts/validate_dxf
   --output-json "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/dxf_validation_test.json"
 ```
 
+## Colab Cell 10: Aggregate Manuscript Tables
+
+After metrics, architectural screening, and DXF validation exist, generate a table:
+
+```bash
+python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/scripts/aggregate_results.py \
+  --model "Full GATv2" \
+  --layout "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/layout_metrics_full_gatv2_test.json" \
+  --architectural "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/architectural_rules_full_gatv2_test.json" \
+  --dxf "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/dxf_validation_test.json" \
+  --output-csv "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/main_results_table.csv" \
+  --output-md "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/main_results_table.md"
+```
+
 ## Final Rule
 
 If held-out performance drops, we report the drop honestly. A modest clean score is stronger than a high leaked score.

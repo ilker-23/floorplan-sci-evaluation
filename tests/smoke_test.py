@@ -125,6 +125,69 @@ def test_filter_by_split(tmp: Path) -> None:
     assert len(test_gt.read_text(encoding="utf-8").strip().splitlines()) == 2
 
 
+def test_aggregate_results(tmp: Path) -> None:
+    layout = tmp / "layout_metrics.json"
+    arch = tmp / "architectural_rules.json"
+    dxf = tmp / "dxf.json"
+    csv_out = tmp / "summary.csv"
+    md_out = tmp / "summary.md"
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/evaluate_layout_metrics.py",
+            "--ground-truth",
+            str(FIX / "layout_gt.jsonl"),
+            "--predictions",
+            str(FIX / "layout_pred.jsonl"),
+            "--output-json",
+            str(layout),
+            "--contact-tol",
+            "0.025",
+        ]
+    )
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/evaluate_architectural_rules.py",
+            "--layouts",
+            str(FIX / "layout_pred.jsonl"),
+            "--rules",
+            "configs/architectural_rules.example.json",
+            "--output-json",
+            str(arch),
+        ]
+    )
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/validate_dxf.py",
+            str(FIX / "dxf"),
+            "--output-json",
+            str(dxf),
+        ]
+    )
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/aggregate_results.py",
+            "--model",
+            "fixture-model",
+            "--layout",
+            str(layout),
+            "--architectural",
+            str(arch),
+            "--dxf",
+            str(dxf),
+            "--output-csv",
+            str(csv_out),
+            "--output-md",
+            str(md_out),
+        ]
+    )
+    assert "fixture-model" in csv_out.read_text(encoding="utf-8")
+    assert "fixture-model" in md_out.read_text(encoding="utf-8")
+
+
 def test_layout_schema_validation(tmp: Path) -> None:
     out = tmp / "schema.json"
     run_cmd(
@@ -177,6 +240,7 @@ def main() -> None:
         test_dxf_validation(tmp)
         test_split_generation(tmp)
         test_filter_by_split(tmp)
+        test_aggregate_results(tmp)
     print("smoke tests passed")
 
 
