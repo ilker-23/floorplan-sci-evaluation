@@ -44,6 +44,9 @@ def test_layout_metrics(tmp: Path) -> None:
     assert summary["num_evaluated"] == 2
     assert 0.85 < summary["miou"]["mean"] <= 1.0
     assert summary["adj_f1"]["mean"] >= 0.5
+    assert "gt_overlap_ratio" in summary
+    assert "overlap_excess_ratio" in summary
+    assert "oracle_like_warning" in summary
     assert by_room.exists()
 
 

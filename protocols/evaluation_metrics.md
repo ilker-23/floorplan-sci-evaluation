@@ -27,6 +27,13 @@ Report:
 
 This is more important than FID for a graph-conditioned floor-plan model.
 
+Important limitation: if the dataset edge field is inherited from Graph2Plan/RPLAN
+metadata, it must not automatically be described as geometric wall-contact
+adjacency. Run the GT-copy oracle check. If an exact ground-truth copy yields
+adjacency F1 below 1.0, then the edge field and recovered box contacts are not
+the same relation. In that case, report the metric as a representation-alignment
+diagnostic, not as direct architectural circulation validity.
+
 ### 3. Boundary Violation Rate
 
 Fraction of room boxes extending outside the normalized canvas or supplied boundary.
@@ -44,6 +51,16 @@ Report:
 
 - mean overlap ratio;
 - percentage of plans with any non-trivial overlap.
+
+Also report ground-truth overlap and excess overlap:
+
+- `gt_overlap_ratio`: overlap already present in the target representation;
+- `overlap_excess_ratio`: max(0, prediction overlap - target overlap);
+- `overlap_delta_abs`: absolute deviation from target overlap.
+
+If the GT-copy oracle has nonzero overlap, raw overlap must not be treated as a
+standalone constructability violation. It is then partly a property of the box
+representation, not necessarily an error introduced by the generator.
 
 ### 5. Room Area Error
 

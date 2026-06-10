@@ -100,6 +100,16 @@ def recovered_edges(room_boxes: dict[str, tuple], tol: float) -> set[tuple[str, 
     return edges
 
 
+def overlap_ratio(room_boxes: dict[str, tuple]) -> tuple[float, bool]:
+    total_area = sum(area(b) for b in room_boxes.values())
+    overlap = 0.0
+    ids = sorted(room_boxes)
+    for idx, a_id in enumerate(ids):
+        for b_id in ids[idx + 1 :]:
+            overlap += intersection(room_boxes[a_id], room_boxes[b_id])
+    return overlap / max(total_area, EPS), overlap > EPS
+
+
 def graph_connected(nodes: set[str], edges: set[tuple[str, str]]) -> bool:
     if not nodes:
         return False
@@ -154,13 +164,10 @@ def evaluate_plan(gt: dict, pred: dict, contact_tol: float) -> dict:
     pred_boxes = {rid: norm_box(pred_rooms[rid]["box"]) for rid in common}
 
     ious = [iou(pred_boxes[rid], gt_boxes[rid]) for rid in common]
-    pred_total_area = sum(area(b) for b in pred_boxes.values())
-    overlap = 0.0
-    ids = sorted(pred_boxes)
-    for idx, a_id in enumerate(ids):
-        for b_id in ids[idx + 1 :]:
-            overlap += intersection(pred_boxes[a_id], pred_boxes[b_id])
+    pred_overlap_ratio, pred_has_overlap = overlap_ratio(pred_boxes)
+    gt_overlap_ratio, gt_has_overlap = overlap_ratio(gt_boxes)
     oob = sum(out_of_bounds_area(b) for b in pred_boxes.values())
+    pred_total_area = sum(area(b) for b in pred_boxes.values())
 
     area_errors = []
     aspect_errors = []
@@ -189,8 +196,12 @@ def evaluate_plan(gt: dict, pred: dict, contact_tol: float) -> dict:
         "room_count": len(common),
         "miou": mean(ious),
         "min_iou": min(ious),
-        "overlap_ratio": overlap / max(pred_total_area, EPS),
-        "has_overlap": overlap > contact_tol * contact_tol,
+        "overlap_ratio": pred_overlap_ratio,
+        "gt_overlap_ratio": gt_overlap_ratio,
+        "overlap_excess_ratio": max(0.0, pred_overlap_ratio - gt_overlap_ratio),
+        "overlap_delta_abs": abs(pred_overlap_ratio - gt_overlap_ratio),
+        "has_overlap": pred_has_overlap,
+        "gt_has_overlap": gt_has_overlap,
         "boundary_violation_ratio": oob / max(pred_total_area, EPS),
         "has_boundary_violation": oob > EPS,
         "area_mape": mean(area_errors),
@@ -235,6 +246,9 @@ def main() -> None:
         "miou",
         "min_iou",
         "overlap_ratio",
+        "gt_overlap_ratio",
+        "overlap_excess_ratio",
+        "overlap_delta_abs",
         "boundary_violation_ratio",
         "area_mape",
         "aspect_error",
@@ -253,6 +267,12 @@ def main() -> None:
             "miou_above_0_50": sum(r["miou"] >= 0.50 for r in per_plan) / len(per_plan),
             "miou_above_0_70": sum(r["miou"] >= 0.70 for r in per_plan) / len(per_plan),
             "plans_with_overlap": sum(r["has_overlap"] for r in per_plan) / len(per_plan),
+            "gt_plans_with_overlap": sum(r["gt_has_overlap"] for r in per_plan) / len(per_plan),
+            "oracle_like_warning": {
+                "meaning": "If predictions are an exact GT copy, mIoU should be 1.0. Nonzero GT overlap or low adjacency recall indicates dataset/edge representation effects, not model errors.",
+                "gt_overlap_mean": summarize([float(r["gt_overlap_ratio"]) for r in per_plan])["mean"],
+                "adjacency_is_geometry_recovered": False,
+            },
             "plans_with_boundary_violation": sum(r["has_boundary_violation"] for r in per_plan)
             / len(per_plan),
             "connectivity_valid_rate": sum(r["connectivity_valid"] for r in per_plan)
@@ -271,7 +291,14 @@ def main() -> None:
             if not group_rows:
                 continue
             row = {"room_count": group, "n": len(group_rows)}
-            for key in ["miou", "adj_f1", "overlap_ratio", "boundary_violation_ratio"]:
+            for key in [
+                "miou",
+                "adj_f1",
+                "overlap_ratio",
+                "gt_overlap_ratio",
+                "overlap_excess_ratio",
+                "boundary_violation_ratio",
+            ]:
                 row[f"{key}_mean"] = mean(float(r[key]) for r in group_rows)
                 row[f"{key}_std"] = pstdev(float(r[key]) for r in group_rows)
             rows.append(row)
