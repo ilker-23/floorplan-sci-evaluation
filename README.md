@@ -37,6 +37,7 @@ python scripts/validate_dxf.py --help
 python scripts/aggregate_results.py --help
 python scripts/audit_manuscript_claims.py --help
 python colab/inspect_rplan_record.py --help
+python colab/graph2plan_train_pkl_to_jsonl.py --help
 ```
 
 ## Local Smoke Test

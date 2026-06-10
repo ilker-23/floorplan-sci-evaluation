@@ -93,7 +93,16 @@ Each row must have:
 
 Important: if edges are derived from ground-truth box contacts, the experiment is reconstruction, not leakage-free program-conditioned generation. For the final paper, prefer program/user adjacency edges.
 
-Use `rplan_to_sci_jsonl_template.py` as the converter starting point. It is deliberately explicit because RPLAN/Graph2Plan copies differ in file structure.
+For the observed Graph2Plan file structure, use:
+
+```bash
+python /content/drive/MyDrive/SASA-GAN_Buildings/colab/graph2plan_train_pkl_to_jsonl.py \
+  --source "/content/drive/MyDrive/RPLAN/Interface/static/Data/data_train_converted.pkl" \
+  --output "/content/drive/MyDrive/SASA-GAN_Buildings/metadata/plans.jsonl" \
+  --summary-json "/content/drive/MyDrive/SASA-GAN_Buildings/reports/plans_conversion_summary.json"
+```
+
+Use `rplan_to_sci_jsonl_template.py` only if your local RPLAN copy differs from the inspected Graph2Plan structure.
 
 ## Colab Cell 5: Freeze Split
 
