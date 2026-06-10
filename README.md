@@ -22,11 +22,13 @@ Read:
 1. `SCI_HARD_REVISION_PLAN.md`
 2. `NEXT_EXPERIMENT_STEPS.md`
 3. `colab/COLAB_RPLAN_WORKFLOW.md`
+4. `notebooks/rplan_inventory_and_split_colab.ipynb`
 
 ## Core Scripts
 
 ```bash
 python scripts/make_splits.py --help
+python scripts/validate_layout_jsonl.py --help
 python scripts/evaluate_layout_metrics.py --help
 python scripts/evaluate_architectural_rules.py --help
 python scripts/validate_dxf.py --help

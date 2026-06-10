@@ -105,9 +105,28 @@ def test_split_generation(tmp: Path) -> None:
     assert (out_dir / "split_assignments.csv").exists()
 
 
+def test_layout_schema_validation(tmp: Path) -> None:
+    out = tmp / "schema.json"
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/validate_layout_jsonl.py",
+            "--input",
+            str(FIX / "layout_gt.jsonl"),
+            "--output-json",
+            str(out),
+        ]
+    )
+    summary = read_json(out)
+    assert summary["valid"] is True
+    assert summary["num_records"] == 2
+    assert summary["min_rooms"] == 3
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
+        test_layout_schema_validation(tmp)
         test_layout_metrics(tmp)
         test_architectural_rules(tmp)
         test_dxf_validation(tmp)

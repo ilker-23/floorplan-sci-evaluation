@@ -70,6 +70,14 @@ Use `rplan_to_sci_jsonl_template.py` as the converter starting point. It is deli
 
 ## Colab Cell 5: Freeze Split
 
+First validate the converted metadata:
+
+```bash
+python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/scripts/validate_layout_jsonl.py \
+  --input "/content/drive/MyDrive/SASA-GAN_Buildings/metadata/plans.jsonl" \
+  --output-json "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/plans_schema_validation.json"
+```
+
 ```bash
 python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/scripts/make_splits.py \
   --input "/content/drive/MyDrive/SASA-GAN_Buildings/metadata/plans.jsonl" \
