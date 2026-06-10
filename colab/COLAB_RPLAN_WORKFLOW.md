@@ -90,6 +90,16 @@ From this point onward, do not tune hyperparameters on the test split.
 
 ## Colab Cell 6: Train Models
 
+Before training/evaluation, create frozen ground-truth files from the split:
+
+```bash
+python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/scripts/filter_layout_jsonl_by_split.py \
+  --input "/content/drive/MyDrive/SASA-GAN_Buildings/metadata/plans.jsonl" \
+  --split-assignments "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/splits/split_assignments.csv" \
+  --output-dir "/content/drive/MyDrive/SASA-GAN_Buildings/outputs" \
+  --strict
+```
+
 Minimum models:
 
 1. MLP room-feature baseline

@@ -28,6 +28,7 @@ Read:
 
 ```bash
 python scripts/make_splits.py --help
+python scripts/filter_layout_jsonl_by_split.py --help
 python scripts/validate_layout_jsonl.py --help
 python scripts/validate_prediction_set.py --help
 python scripts/evaluate_layout_metrics.py --help

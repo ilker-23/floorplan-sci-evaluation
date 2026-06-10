@@ -105,6 +105,26 @@ def test_split_generation(tmp: Path) -> None:
     assert (out_dir / "split_assignments.csv").exists()
 
 
+def test_filter_by_split(tmp: Path) -> None:
+    out_dir = tmp / "filtered"
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/filter_layout_jsonl_by_split.py",
+            "--input",
+            str(FIX / "layout_gt.jsonl"),
+            "--split-assignments",
+            str(FIX / "split_assignments.csv"),
+            "--output-dir",
+            str(out_dir),
+            "--strict",
+        ]
+    )
+    test_gt = out_dir / "test_ground_truth.jsonl"
+    assert test_gt.exists()
+    assert len(test_gt.read_text(encoding="utf-8").strip().splitlines()) == 2
+
+
 def test_layout_schema_validation(tmp: Path) -> None:
     out = tmp / "schema.json"
     run_cmd(
@@ -156,6 +176,7 @@ def main() -> None:
         test_architectural_rules(tmp)
         test_dxf_validation(tmp)
         test_split_generation(tmp)
+        test_filter_by_split(tmp)
     print("smoke tests passed")
 
 
