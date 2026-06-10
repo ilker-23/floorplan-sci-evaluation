@@ -1,0 +1,22 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Generated evaluation outputs
+reports/*
+!reports/.gitkeep
+
+# Local datasets and model outputs
+metadata/
+outputs/
+data/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Large CAD/export batches
+*.dwg
+outputs/

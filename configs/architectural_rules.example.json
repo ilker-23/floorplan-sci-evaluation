@@ -1,0 +1,36 @@
+{
+  "contact_tolerance": 0.001,
+  "overlap_tolerance_ratio": 0.001,
+  "boundary_tolerance_ratio": 0.000001,
+  "max_aspect_ratio": {
+    "default": 4.0,
+    "Corridor": 8.0,
+    "Hall": 6.0,
+    "Balcony": 8.0
+  },
+  "min_area_m2": {
+    "LivingRoom": 16.0,
+    "Kitchen": 7.0,
+    "MasterRoom": 12.0,
+    "Bedroom": 9.0,
+    "ChildRoom": 9.0,
+    "SecondRoom": 9.0,
+    "Bathroom": 3.0,
+    "WC": 1.5,
+    "Corridor": 3.0,
+    "Hall": 3.0,
+    "Balcony": 2.0,
+    "Storage": 1.5,
+    "StudyRoom": 6.0,
+    "DiningRoom": 8.0
+  },
+  "public_room_types": ["LivingRoom", "DiningRoom"],
+  "service_room_types": ["Kitchen", "Bathroom", "WC", "Storage"],
+  "private_room_types": ["MasterRoom", "Bedroom", "ChildRoom", "SecondRoom", "StudyRoom"],
+  "wet_room_types": ["Kitchen", "Bathroom", "WC"],
+  "rules": {
+    "require_connected_graph": true,
+    "flag_isolated_service_rooms": true,
+    "flag_private_room_as_only_access_to_service": true
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "seed": 20260610,
+  "train_ratio": 0.70,
+  "val_ratio": 0.15,
+  "test_ratio": 0.15,
+  "group_key": "family_id",
+  "id_key": "plan_id",
+  "input_metadata": "metadata/plans.jsonl",
+  "output_dir": "sci_system/reports/splits"
+}

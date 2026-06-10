@@ -1,0 +1,2 @@
+{"plan_id":"plan_000001","family_id":"family_000001","rooms":[{"id":"r1","type":"LivingRoom","box":[0.10,0.10,0.45,0.45]},{"id":"r2","type":"Kitchen","box":[0.45,0.10,0.70,0.32]}],"edges":[["r1","r2"]]}
+{"plan_id":"plan_000002","family_id":"family_000002","rooms":[{"id":"r1","type":"LivingRoom","box":[0.20,0.15,0.60,0.50]},{"id":"r2","type":"Bathroom","box":[0.60,0.15,0.78,0.34]}],"edges":[["r1","r2"]]}
