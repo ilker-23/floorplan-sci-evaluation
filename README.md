@@ -36,6 +36,7 @@ python scripts/evaluate_architectural_rules.py --help
 python scripts/validate_dxf.py --help
 python scripts/aggregate_results.py --help
 python scripts/audit_manuscript_claims.py --help
+python colab/inspect_rplan_record.py --help
 ```
 
 ## Local Smoke Test

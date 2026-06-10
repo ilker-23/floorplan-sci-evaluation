@@ -52,6 +52,33 @@ python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/colab/inspect_drive_
 
 ## Colab Cell 4: Convert RPLAN to SCI JSONL
 
+Before converting, deep-inspect the candidate file identified by the inventory. For your current Drive inventory, the strongest candidates are:
+
+- `Interface/static/Data/data_train_converted.pkl`
+- `Interface/static/Data/data_test_converted.pkl`
+
+Run:
+
+```bash
+python /content/drive/MyDrive/SASA-GAN_Buildings/colab/inspect_rplan_record.py \
+  --file "/content/drive/MyDrive/RPLAN/Interface/static/Data/data_train_converted.pkl" \
+  --output-json "/content/drive/MyDrive/SASA-GAN_Buildings/reports/rplan_train_converted_structure.json" \
+  --max-depth 6 \
+  --max-items 12
+```
+
+and:
+
+```bash
+python /content/drive/MyDrive/SASA-GAN_Buildings/colab/inspect_rplan_record.py \
+  --file "/content/drive/MyDrive/RPLAN/Interface/static/Data/data_test_converted.pkl" \
+  --output-json "/content/drive/MyDrive/SASA-GAN_Buildings/reports/rplan_test_converted_structure.json" \
+  --max-depth 6 \
+  --max-items 12
+```
+
+Send these two JSON summaries back before finalizing the converter.
+
 The final target is:
 
 ```text
