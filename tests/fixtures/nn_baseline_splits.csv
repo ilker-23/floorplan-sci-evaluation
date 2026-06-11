@@ -1,0 +1,4 @@
+plan_id,group,split
+train_a,fa,train
+train_b,fb,train
+test_a,fc,test

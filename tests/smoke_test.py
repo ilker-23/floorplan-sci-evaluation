@@ -233,11 +233,68 @@ def test_prediction_set_validation(tmp: Path) -> None:
     assert summary["num_missing_predictions"] == 0
 
 
+def test_nearest_neighbor_baseline(tmp: Path) -> None:
+    pred = tmp / "nn_baseline.jsonl"
+    summary_path = tmp / "nn_baseline_summary.json"
+    validation = tmp / "nn_baseline_validation.json"
+    metrics = tmp / "nn_baseline_metrics.json"
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/make_nearest_neighbor_baseline.py",
+            "--input",
+            str(FIX / "nn_baseline_layouts.jsonl"),
+            "--split-assignments",
+            str(FIX / "nn_baseline_splits.csv"),
+            "--output-jsonl",
+            str(pred),
+            "--output-summary",
+            str(summary_path),
+        ]
+    )
+    baseline_summary = read_json(summary_path)
+    assert baseline_summary["num_targets"] == 1
+    assert baseline_summary["num_candidates"] == 2
+    assert baseline_summary["exact_type_histogram_match_rate"] == 1.0
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/validate_prediction_set.py",
+            "--ground-truth",
+            str(FIX / "nn_baseline_layouts.jsonl"),
+            "--predictions",
+            str(pred),
+            "--split-assignments",
+            str(FIX / "nn_baseline_splits.csv"),
+            "--split",
+            "test",
+            "--allow-extra-predictions",
+            "--output-json",
+            str(validation),
+        ]
+    )
+    assert read_json(validation)["valid"] is True
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/evaluate_layout_metrics.py",
+            "--ground-truth",
+            str(FIX / "nn_baseline_layouts.jsonl"),
+            "--predictions",
+            str(pred),
+            "--output-json",
+            str(metrics),
+        ]
+    )
+    assert read_json(metrics)["summary"]["num_evaluated"] == 1
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         test_layout_schema_validation(tmp)
         test_prediction_set_validation(tmp)
+        test_nearest_neighbor_baseline(tmp)
         test_layout_metrics(tmp)
         test_architectural_rules(tmp)
         test_dxf_validation(tmp)
