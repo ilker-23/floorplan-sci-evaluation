@@ -289,12 +289,68 @@ def test_nearest_neighbor_baseline(tmp: Path) -> None:
     assert read_json(metrics)["summary"]["num_evaluated"] == 1
 
 
+def test_program_template_baseline(tmp: Path) -> None:
+    pred = tmp / "program_template.jsonl"
+    summary_path = tmp / "program_template_summary.json"
+    validation = tmp / "program_template_validation.json"
+    metrics = tmp / "program_template_metrics.json"
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/make_program_template_baseline.py",
+            "--input",
+            str(FIX / "nn_baseline_layouts.jsonl"),
+            "--split-assignments",
+            str(FIX / "nn_baseline_splits.csv"),
+            "--output-jsonl",
+            str(pred),
+            "--output-summary",
+            str(summary_path),
+        ]
+    )
+    baseline_summary = read_json(summary_path)
+    assert baseline_summary["num_target_records"] == 1
+    assert baseline_summary["exact_signature_target_rate"] == 1.0
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/validate_prediction_set.py",
+            "--ground-truth",
+            str(FIX / "nn_baseline_layouts.jsonl"),
+            "--predictions",
+            str(pred),
+            "--split-assignments",
+            str(FIX / "nn_baseline_splits.csv"),
+            "--split",
+            "test",
+            "--allow-extra-predictions",
+            "--output-json",
+            str(validation),
+        ]
+    )
+    assert read_json(validation)["valid"] is True
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/evaluate_layout_metrics.py",
+            "--ground-truth",
+            str(FIX / "nn_baseline_layouts.jsonl"),
+            "--predictions",
+            str(pred),
+            "--output-json",
+            str(metrics),
+        ]
+    )
+    assert read_json(metrics)["summary"]["num_evaluated"] == 1
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         test_layout_schema_validation(tmp)
         test_prediction_set_validation(tmp)
         test_nearest_neighbor_baseline(tmp)
+        test_program_template_baseline(tmp)
         test_layout_metrics(tmp)
         test_architectural_rules(tmp)
         test_dxf_validation(tmp)
