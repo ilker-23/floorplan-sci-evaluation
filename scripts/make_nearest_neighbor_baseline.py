@@ -15,6 +15,7 @@ import argparse
 import csv
 import json
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
 
@@ -56,26 +57,67 @@ def type_counter(record: dict) -> Counter:
     return Counter(room_types(record))
 
 
+def type_signature(counter: Counter) -> tuple[tuple[str, int], ...]:
+    return tuple(sorted((str(k), int(v)) for k, v in counter.items()))
+
+
 def edge_count(record: dict) -> int:
     return len(record.get("edges", []))
 
 
-def histogram_l1(a: Counter, b: Counter) -> int:
+def histogram_l1(a: dict[str, int], b: dict[str, int]) -> int:
     keys = set(a) | set(b)
     return sum(abs(a.get(k, 0) - b.get(k, 0)) for k in keys)
 
 
-def score_candidate(target: dict, candidate: dict) -> tuple[int, int, int, str]:
-    type_mismatch = histogram_l1(type_counter(target), type_counter(candidate))
-    room_count_gap = abs(len(target.get("rooms", [])) - len(candidate.get("rooms", [])))
-    edge_count_gap = abs(edge_count(target) - edge_count(candidate))
-    return (type_mismatch, room_count_gap, edge_count_gap, str(candidate["plan_id"]))
+@dataclass(frozen=True)
+class LayoutFeature:
+    plan_id: str
+    record: dict
+    type_counts: dict[str, int]
+    type_sig: tuple[tuple[str, int], ...]
+    room_count: int
+    edge_count: int
 
 
-def select_candidate(target: dict, candidates: list[dict]) -> dict:
+def make_feature(record: dict) -> LayoutFeature:
+    counts = dict(type_counter(record))
+    return LayoutFeature(
+        plan_id=str(record["plan_id"]),
+        record=record,
+        type_counts=counts,
+        type_sig=type_signature(Counter(counts)),
+        room_count=len(record.get("rooms", [])),
+        edge_count=edge_count(record),
+    )
+
+
+def score_candidate(target: LayoutFeature, candidate: LayoutFeature) -> tuple[int, int, int, str]:
+    type_mismatch = histogram_l1(target.type_counts, candidate.type_counts)
+    room_count_gap = abs(target.room_count - candidate.room_count)
+    edge_count_gap = abs(target.edge_count - candidate.edge_count)
+    return (type_mismatch, room_count_gap, edge_count_gap, candidate.plan_id)
+
+
+def build_exact_type_index(candidates: list[LayoutFeature]) -> dict[tuple[tuple[str, int], ...], list[LayoutFeature]]:
+    index: dict[tuple[tuple[str, int], ...], list[LayoutFeature]] = {}
+    for candidate in candidates:
+        index.setdefault(candidate.type_sig, []).append(candidate)
+    return index
+
+
+def select_candidate(
+    target: LayoutFeature,
+    candidates: list[LayoutFeature],
+    exact_type_index: dict[tuple[tuple[str, int], ...], list[LayoutFeature]],
+) -> tuple[LayoutFeature, bool]:
     if not candidates:
         raise SystemExit("No candidate training records available")
-    return min(candidates, key=lambda row: score_candidate(target, row))
+    pool = exact_type_index.get(target.type_sig)
+    used_exact_index = bool(pool)
+    if not pool:
+        pool = candidates
+    return min(pool, key=lambda row: score_candidate(target, row)), used_exact_index
 
 
 def candidate_room_pool(candidate: dict) -> dict[str, list[dict]]:
@@ -142,17 +184,18 @@ def main() -> None:
     ap.add_argument("--candidate-split", default="train")
     ap.add_argument("--output-jsonl", required=True, type=Path)
     ap.add_argument("--output-summary", type=Path)
+    ap.add_argument("--progress-every", type=int, default=500)
     args = ap.parse_args()
 
     records = read_jsonl(args.input)
     split_by_plan = read_split_csv(args.split_assignments)
     candidates = [
-        records[pid]
+        make_feature(records[pid])
         for pid, split in split_by_plan.items()
         if split == args.candidate_split and pid in records
     ]
     targets = [
-        records[pid]
+        make_feature(records[pid])
         for pid, split in split_by_plan.items()
         if split == args.target_split and pid in records
     ]
@@ -164,12 +207,28 @@ def main() -> None:
     predictions = []
     fallback_counts = []
     selected_scores = []
-    for target in sorted(targets, key=lambda r: r["plan_id"]):
-        candidate = select_candidate(target, candidates)
-        prediction, fallback_count = transfer_boxes(target, candidate)
+    exact_index_hits = 0
+    exact_type_index = build_exact_type_index(candidates)
+    sorted_targets = sorted(targets, key=lambda r: r.plan_id)
+    for idx, target in enumerate(sorted_targets, 1):
+        candidate, used_exact_index = select_candidate(target, candidates, exact_type_index)
+        if used_exact_index:
+            exact_index_hits += 1
+        prediction, fallback_count = transfer_boxes(target.record, candidate.record)
         predictions.append(prediction)
         fallback_counts.append(fallback_count)
         selected_scores.append(score_candidate(target, candidate)[:3])
+        if args.progress_every > 0 and idx % args.progress_every == 0:
+            print(
+                json.dumps(
+                    {
+                        "progress": idx,
+                        "num_targets": len(sorted_targets),
+                        "exact_type_index_hit_rate_so_far": exact_index_hits / idx,
+                    }
+                ),
+                flush=True,
+            )
 
     write_jsonl(args.output_jsonl, predictions)
     exact_type_matches = sum(1 for score in selected_scores if score[0] == 0)
@@ -181,7 +240,9 @@ def main() -> None:
         "candidate_split": args.candidate_split,
         "num_targets": len(targets),
         "num_candidates": len(candidates),
+        "num_candidate_type_signatures": len(exact_type_index),
         "output_jsonl": str(args.output_jsonl),
+        "exact_type_index_hit_rate": exact_index_hits / len(targets),
         "exact_type_histogram_match_rate": exact_type_matches / len(targets),
         "mean_room_type_l1": mean(score[0] for score in selected_scores),
         "mean_room_count_gap": mean(score[1] for score in selected_scores),
