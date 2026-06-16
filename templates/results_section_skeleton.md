@@ -24,6 +24,14 @@ Interpret:
 - area MAPE: room-program preservation;
 - connectivity: usable topology.
 
+Separate roles explicitly:
+
+- oracle copy is a sanity check;
+- nearest-neighbor and program-template runs are in-house baselines;
+- any model that receives GT-spatial edges, GT directions, or GT centroids is a
+  diagnostic/upper-bound run;
+- only leakage-free held-out test results can support the final claim.
+
 ### 4.3. Ablation Analysis
 
 The ablation must answer:

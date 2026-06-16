@@ -4,25 +4,20 @@ This is the immediate work order. It is intentionally practical and strict.
 
 ## Current Reality
 
-Inside this manuscript folder, there is no actual RPLAN dataset, no full prediction JSONL, no training logs, and no full DXF export set. There are manuscript files, figures, scripts, and three DXF examples.
+The dataset and split pipeline is now established in Colab/Drive.
 
-You use RPLAN from Google Drive in Colab. Therefore the next real scientific step is not rewriting prose. It is connecting the Colab/Drive model-data pipeline to the SCI evaluation system.
+Known benchmark state:
 
-Start with:
+- converted layout records: 74,985;
+- train/validation/test split: 59,988 / 7,499 / 7,498;
+- oracle GT-copy sanity check: mIoU = 1.0, overlap excess = 0.0;
+- nearest-neighbor train-program baseline: mIoU about 0.133;
+- program-template train-median baseline: mIoU about 0.192;
+- legacy GNN with GT-spatial edges is a leakage diagnostic, not a final model;
+- the next publishable result must come from `colab/train_leakage_free_gnn.py`.
 
-```text
-sci_system/colab/COLAB_RPLAN_WORKFLOW.md
-```
-
-First run the Drive inventory script:
-
-```bash
-python /content/drive/MyDrive/SASA-GAN_Buildings/sci_system/colab/inspect_drive_dataset.py \
-  --root "/content/drive/MyDrive/RPLAN" \
-  --output-json "/content/drive/MyDrive/SASA-GAN_Buildings/sci_system/reports/rplan_drive_inventory.json"
-```
-
-Then inspect `rplan_drive_inventory.json` and edit the converter template if needed.
+Therefore the next real scientific step is not prose polishing. It is producing
+a leakage-free candidate model and a reviewer-facing evidence pack.
 
 ## Step 1: Locate or Export the Dataset Metadata
 
@@ -75,11 +70,12 @@ It must use the same `plan_id` and room `id` values as ground truth.
 
 Required first models:
 
-1. MLP baseline.
-2. GCN.
-3. GAT.
-4. GATv2.
-5. Full GATv2 + topology-aware loss.
+1. Oracle GT copy, sanity check only.
+2. Nearest-neighbor train-program-signature baseline.
+3. Program-template train-median baseline.
+4. Legacy notebook checkpoint with program edges, diagnostic.
+5. Legacy notebook checkpoint with GT-spatial edges, leakage diagnostic only.
+6. Retrained leakage-free GNN candidate.
 
 ## Step 4: Run Layout Metrics
 
@@ -128,3 +124,23 @@ Do not use only high-IoU examples.
 The Results section must be rewritten only after Steps 1-6 are complete.
 
 If the held-out score drops, do not hide it. A lower but honest held-out score is much more publishable than a high leaked score.
+
+## Step 8: Build the Reviewer Evidence Pack
+
+After collecting metric JSON files, run:
+
+```bash
+python scripts/build_review_evidence_pack.py \
+  --run oracle_gt_copy=reports/metrics/oracle_gt_copy_metrics.json \
+  --run nn_train_program_signature=reports/metrics/nn_train_program_signature_metrics.json \
+  --run program_template_train_median=reports/metrics/program_template_train_median_metrics.json \
+  --run leakage_free_program_gnn=reports/metrics/leakage_free_program_gnn_metrics.json \
+  --baseline nn_train_program_signature \
+  --baseline program_template_train_median \
+  --diagnostic oracle_gt_copy \
+  --reference program_template_train_median \
+  --output-md reports/q1_review_evidence_pack.md \
+  --output-json reports/q1_review_evidence_pack.json
+```
+
+Only rows marked as candidate evidence can support the main model claim.

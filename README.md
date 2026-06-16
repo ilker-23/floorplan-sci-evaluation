@@ -21,8 +21,10 @@ Read:
 
 1. `SCI_HARD_REVISION_PLAN.md`
 2. `NEXT_EXPERIMENT_STEPS.md`
-3. `colab/COLAB_RPLAN_WORKFLOW.md`
-4. `notebooks/rplan_inventory_and_split_colab.ipynb`
+3. `protocols/q1_comparison_protocol.md`
+4. `templates/q1_48h_evidence_pack.md`
+5. `colab/COLAB_RPLAN_WORKFLOW.md`
+6. `notebooks/rplan_inventory_and_split_colab.ipynb`
 
 ## Core Scripts
 
@@ -35,9 +37,11 @@ python scripts/evaluate_layout_metrics.py --help
 python scripts/evaluate_architectural_rules.py --help
 python scripts/validate_dxf.py --help
 python scripts/aggregate_results.py --help
+python scripts/build_review_evidence_pack.py --help
 python scripts/audit_manuscript_claims.py --help
 python colab/inspect_rplan_record.py --help
 python colab/graph2plan_train_pkl_to_jsonl.py --help
+python colab/train_leakage_free_gnn.py --help
 ```
 
 ## Local Smoke Test

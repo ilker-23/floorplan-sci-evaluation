@@ -16,13 +16,14 @@ Required note:
 
 ## Table 2. Main Held-Out Test Results
 
-| Model | mIoU ↑ | Adj-P ↑ | Adj-R ↑ | Adj-F1 ↑ | Overlap ↓ | Boundary ↓ | Area MAPE ↓ | Conn. valid ↑ | Time/plan ↓ |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| MLP | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| GCN | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| GAT | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| GATv2 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| Full GATv2 + topology loss | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Model/run | Role | mIoU ↑ | Adj-P ↑ | Adj-R ↑ | Adj-F1 ↑ | Overlap excess ↓ | Boundary ↓ | Area MAPE ↓ | Conn. valid ↑ | Use in paper |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| Oracle GT copy | Sanity check | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Sanity only |
+| Nearest-neighbor train-program signature | Baseline | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Main baseline |
+| Program-template train median | Baseline | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Main baseline |
+| Legacy GNN + program edges | Diagnostic/candidate | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Use only if leakage-free |
+| Legacy GNN + GT-spatial edges | Leakage diagnostic | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Upper-bound diagnostic only |
+| Retrained leakage-free GNN | Candidate | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Main model only if it beats baselines |
 
 ## Table 3. Ablation Study
 

@@ -191,6 +191,65 @@ def test_aggregate_results(tmp: Path) -> None:
     assert "fixture-model" in md_out.read_text(encoding="utf-8")
 
 
+def test_review_evidence_pack(tmp: Path) -> None:
+    baseline = tmp / "baseline.json"
+    candidate = tmp / "candidate.json"
+    out_md = tmp / "evidence.md"
+    out_json = tmp / "evidence.json"
+    baseline.write_text(
+        json.dumps(
+            {
+                "summary": {
+                    "num_evaluated": 1500,
+                    "miou": {"mean": 0.20},
+                    "adj_f1": {"mean": 0.30},
+                    "overlap_excess_ratio": {"mean": 0.01},
+                    "boundary_violation_ratio": {"mean": 0.0},
+                    "area_mape": {"mean": 0.25},
+                    "connectivity_valid_rate": 0.60,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    candidate.write_text(
+        json.dumps(
+            {
+                "summary": {
+                    "num_evaluated": 1500,
+                    "miou": {"mean": 0.24},
+                    "adj_f1": {"mean": 0.35},
+                    "overlap_excess_ratio": {"mean": 0.02},
+                    "boundary_violation_ratio": {"mean": 0.0},
+                    "area_mape": {"mean": 0.22},
+                    "connectivity_valid_rate": 0.62,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    run_cmd(
+        [
+            sys.executable,
+            "scripts/build_review_evidence_pack.py",
+            "--run",
+            f"program_template={baseline}",
+            "--run",
+            f"leakage_free_gnn={candidate}",
+            "--baseline",
+            "program_template",
+            "--reference",
+            "program_template",
+            "--output-md",
+            str(out_md),
+            "--output-json",
+            str(out_json),
+        ]
+    )
+    assert "candidate evidence" in out_md.read_text(encoding="utf-8")
+    assert read_json(out_json)["rows"][1]["delta_vs_reference"] > 0
+
+
 def test_layout_schema_validation(tmp: Path) -> None:
     out = tmp / "schema.json"
     run_cmd(
@@ -357,6 +416,7 @@ def main() -> None:
         test_split_generation(tmp)
         test_filter_by_split(tmp)
         test_aggregate_results(tmp)
+        test_review_evidence_pack(tmp)
     print("smoke tests passed")
 
 
