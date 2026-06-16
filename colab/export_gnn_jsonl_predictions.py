@@ -50,8 +50,15 @@ def read_jsonl(path: Path) -> list[dict]:
     return rows
 
 
-def room_type_id(room: dict, num_types: int) -> int:
-    raw = room.get("type_id")
+def room_type_id(room: dict, num_types: int, type_source: str) -> int:
+    if type_source == "order":
+        raw = room.get("order")
+    elif type_source == "type_id":
+        raw = room.get("type_id")
+    elif type_source == "type_name":
+        raw = ROOM_TYPE_TO_ID.get(str(room.get("type", "Other")), num_types - 1)
+    else:
+        raise ValueError(f"Unsupported type_source: {type_source}")
     if raw is None:
         raw = ROOM_TYPE_TO_ID.get(str(room.get("type", "Other")), num_types - 1)
     try:
@@ -89,12 +96,30 @@ def cxcywh_to_xyxy(box) -> list[float]:
     return [x1, y1, x2, y2]
 
 
-def make_legacy_graph(record: dict, torch, Data, num_types: int, edge_mode: str, size_source: str):
+def spatial_relation(a_box: list[float], b_box: list[float]) -> int:
+    ax, ay, _, _ = xyxy_to_cxcywh(a_box)
+    bx, by, _, _ = xyxy_to_cxcywh(b_box)
+    dx, dy = bx - ax, by - ay
+    import math
+
+    angle = math.degrees(math.atan2(dy, dx))
+    if 45 <= angle < 135:
+        return 1
+    if -135 <= angle < -45:
+        return 2
+    if 135 <= angle or angle < -135:
+        return 3
+    if -45 <= angle < 45:
+        return 4
+    return 0
+
+
+def make_legacy_graph(record: dict, torch, Data, num_types: int, edge_mode: str, size_source: str, type_source: str):
     rooms = record.get("rooms", [])
     if not rooms:
         raise ValueError(f"{record.get('plan_id')}: no rooms")
 
-    type_ids = [room_type_id(room, num_types) for room in rooms]
+    type_ids = [room_type_id(room, num_types, type_source) for room in rooms]
     feats = []
     for room, tid in zip(rooms, type_ids):
         onehot = [0.0] * num_types
@@ -128,6 +153,16 @@ def make_legacy_graph(record: dict, torch, Data, num_types: int, edge_mode: str,
                 src.append(i)
                 dst.append(j)
                 attrs.append(1)
+    elif edge_mode == "spatial_from_gt":
+        for i, room_i in enumerate(rooms):
+            for j, room_j in enumerate(rooms):
+                if i == j:
+                    continue
+                rel = spatial_relation(room_i["box"], room_j["box"])
+                if rel != 0:
+                    src.append(i)
+                    dst.append(j)
+                    attrs.append(rel)
     else:
         raise ValueError(f"Unsupported legacy edge_mode: {edge_mode}")
     if not src:
@@ -140,12 +175,12 @@ def make_legacy_graph(record: dict, torch, Data, num_types: int, edge_mode: str,
     )
 
 
-def make_v2_graph(record: dict, torch, Data, num_types: int, size_source: str):
+def make_v2_graph(record: dict, torch, Data, num_types: int, size_source: str, type_source: str):
     rooms = record.get("rooms", [])
     if not rooms:
         raise ValueError(f"{record.get('plan_id')}: no rooms")
 
-    type_ids = [room_type_id(room, num_types) for room in rooms]
+    type_ids = [room_type_id(room, num_types, type_source) for room in rooms]
     feats = []
     for room, tid in zip(rooms, type_ids):
         onehot = [0.0] * num_types
@@ -264,8 +299,13 @@ def main() -> None:
     ap.add_argument("--output-jsonl", required=True, type=Path)
     ap.add_argument("--output-summary", type=Path)
     ap.add_argument("--architecture", choices=["legacy_gat10", "v2_gat"], default="legacy_gat10")
-    ap.add_argument("--legacy-edge-mode", choices=["program_edges", "complete_constant"], default="program_edges")
+    ap.add_argument(
+        "--legacy-edge-mode",
+        choices=["program_edges", "complete_constant", "spatial_from_gt"],
+        default="program_edges",
+    )
     ap.add_argument("--size-source", choices=["gt", "constant"], default="gt")
+    ap.add_argument("--type-source", choices=["order", "type_id", "type_name"], default="type_id")
     ap.add_argument("--num-types", type=int, default=8)
     ap.add_argument("--batch-size", type=int, default=64)
     args = ap.parse_args()
@@ -286,9 +326,17 @@ def main() -> None:
     graphs = []
     for record in records:
         if args.architecture == "legacy_gat10":
-            graph = make_legacy_graph(record, torch, Data, args.num_types, args.legacy_edge_mode, args.size_source)
+            graph = make_legacy_graph(
+                record,
+                torch,
+                Data,
+                args.num_types,
+                args.legacy_edge_mode,
+                args.size_source,
+                args.type_source,
+            )
         else:
-            graph = make_v2_graph(record, torch, Data, args.num_types, args.size_source)
+            graph = make_v2_graph(record, torch, Data, args.num_types, args.size_source, args.type_source)
         graphs.append(graph)
 
     args.output_jsonl.parent.mkdir(parents=True, exist_ok=True)
@@ -337,11 +385,18 @@ def main() -> None:
         "architecture": args.architecture,
         "legacy_edge_mode": args.legacy_edge_mode if args.architecture == "legacy_gat10" else None,
         "size_source": args.size_source,
+        "type_source": args.type_source,
         "conditioning_warning": (
             "Uses target room sizes as conditioning. Report as room-size-conditioned; "
             "do not call this unconditional generation."
             if args.size_source == "gt"
             else "Uses constant room sizes; likely out of distribution for checkpoints trained with GT sizes."
+        ),
+        "leakage_warning": (
+            "Uses GT box centers to construct spatial edge attributes, matching the legacy notebook training path. "
+            "This is not leakage-free and must not be used as the final SCI model claim."
+            if args.legacy_edge_mode == "spatial_from_gt"
+            else None
         ),
         "checkpoint_meta": ck_meta,
     }
