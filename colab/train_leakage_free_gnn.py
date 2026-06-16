@@ -269,6 +269,23 @@ def zero_loss_like(pred):
     return pred.new_tensor(0.0)
 
 
+def checkpoint_args(args: argparse.Namespace) -> dict:
+    clean = {}
+    for key, value in vars(args).items():
+        clean[key] = str(value) if isinstance(value, Path) else value
+    return clean
+
+
+def load_checkpoint(torch, checkpoint_path: Path, device):
+    try:
+        return torch.load(checkpoint_path, map_location=device)
+    except Exception as exc:
+        message = str(exc)
+        if "Weights only load failed" not in message and "weights_only" not in message:
+            raise
+        return torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+
 def export_predictions(torch, model, records, graphs, Batch, device, output_jsonl: Path, batch_size: int):
     model.eval()
     output_jsonl.parent.mkdir(parents=True, exist_ok=True)
@@ -323,6 +340,7 @@ def main() -> None:
     ap.add_argument("--limit-train", type=int)
     ap.add_argument("--limit-val", type=int)
     ap.add_argument("--val-every", type=int, default=1)
+    ap.add_argument("--export-only", action="store_true", help="Load checkpoint and export test predictions without training.")
     args = ap.parse_args()
 
     torch, nn, F, Dataset, DataLoader, Batch, Data, GATv2Conv, global_mean_pool = import_torch_modules()
@@ -330,20 +348,49 @@ def main() -> None:
     torch.manual_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_records = read_jsonl(args.train_jsonl)
-    val_records = read_jsonl(args.val_jsonl)
     test_records = read_jsonl(args.test_jsonl)
-    if args.limit_train:
+
+    train_records = [] if args.export_only else read_jsonl(args.train_jsonl)
+    val_records = [] if args.export_only else read_jsonl(args.val_jsonl)
+    if args.limit_train and not args.export_only:
         train_records = train_records[: args.limit_train]
-    if args.limit_val:
+    if args.limit_val and not args.export_only:
         val_records = val_records[: args.limit_val]
 
-    train_graphs = [make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in train_records]
+    train_graphs = [
+        make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in train_records
+    ]
     val_graphs = [make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in val_records]
     test_graphs = [make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in test_records]
 
     in_dim = args.num_types + 4
     model = build_model(torch, nn, F, GATv2Conv, global_mean_pool, in_dim, args.copy_input_size).to(device)
+    if args.export_only:
+        ck = load_checkpoint(torch, args.checkpoint_out, device)
+        model.load_state_dict(ck["model"])
+        export_predictions(torch, model, test_records, test_graphs, Batch, device, args.output_jsonl, args.batch_size)
+        summary = {
+            "method": "leakage_free_program_gnn",
+            "mode": "export_only",
+            "test_jsonl": str(args.test_jsonl),
+            "output_jsonl": str(args.output_jsonl),
+            "checkpoint_out": str(args.checkpoint_out),
+            "num_test": len(test_records),
+            "checkpoint_epoch": ck.get("epoch"),
+            "checkpoint_best_val_miou": ck.get("best_val_miou"),
+            "copy_input_size": args.copy_input_size,
+            "type_source": args.type_source,
+            "leakage_statement": "No GT centers or GT-derived spatial edge attributes are used as model inputs.",
+            "conditioning_statement": "Uses room sizes as supplied program information."
+            if args.copy_input_size
+            else "Predicts room sizes.",
+        }
+        if args.summary_json:
+            args.summary_json.parent.mkdir(parents=True, exist_ok=True)
+            args.summary_json.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        print(json.dumps(summary, indent=2))
+        return
+
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
     train_loader = DataLoader(train_graphs, batch_size=args.batch_size, shuffle=True, collate_fn=Batch.from_data_list)
@@ -384,13 +431,13 @@ def main() -> None:
                     "epoch": epoch,
                     "model": model.state_dict(),
                     "best_val_miou": best_val,
-                    "args": vars(args),
+                    "args": checkpoint_args(args),
                     "method": "leakage_free_program_gnn",
                 },
                 args.checkpoint_out,
             )
 
-    ck = torch.load(args.checkpoint_out, map_location=device)
+    ck = load_checkpoint(torch, args.checkpoint_out, device)
     model.load_state_dict(ck["model"])
     export_predictions(torch, model, test_records, test_graphs, Batch, device, args.output_jsonl, args.batch_size)
 
