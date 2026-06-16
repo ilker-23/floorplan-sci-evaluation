@@ -265,6 +265,10 @@ def evaluate(torch, model, loader, device):
     return mean(vals) if vals else 0.0
 
 
+def zero_loss_like(pred):
+    return pred.new_tensor(0.0)
+
+
 def export_predictions(torch, model, records, graphs, Batch, device, output_jsonl: Path, batch_size: int):
     model.eval()
     output_jsonl.parent.mkdir(parents=True, exist_ok=True)
@@ -317,6 +321,8 @@ def main() -> None:
     ap.add_argument("--lambda-adj", type=float, default=0.2)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--limit-train", type=int)
+    ap.add_argument("--limit-val", type=int)
+    ap.add_argument("--val-every", type=int, default=1)
     args = ap.parse_args()
 
     torch, nn, F, Dataset, DataLoader, Batch, Data, GATv2Conv, global_mean_pool = import_torch_modules()
@@ -329,6 +335,8 @@ def main() -> None:
     test_records = read_jsonl(args.test_jsonl)
     if args.limit_train:
         train_records = train_records[: args.limit_train]
+    if args.limit_val:
+        val_records = val_records[: args.limit_val]
 
     train_graphs = [make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in train_records]
     val_graphs = [make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in val_records]
@@ -354,15 +362,18 @@ def main() -> None:
             pred = model(batch)
             l1 = F.smooth_l1_loss(pred, batch.y)
             liou = 1.0 - box_iou_cxcywh(torch, pred, batch.y).mean()
-            lov = overlap_loss(torch, pred, batch.batch)
-            loob = oob_loss(torch, pred)
-            ladj = adjacency_gap_loss(torch, pred, batch.edge_index)
+            lov = overlap_loss(torch, pred, batch.batch) if args.lambda_overlap else zero_loss_like(pred)
+            loob = oob_loss(torch, pred) if args.lambda_oob else zero_loss_like(pred)
+            ladj = adjacency_gap_loss(torch, pred, batch.edge_index) if args.lambda_adj else zero_loss_like(pred)
             loss = l1 + args.lambda_iou * liou + args.lambda_overlap * lov + args.lambda_oob * loob + args.lambda_adj * ladj
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
             losses.append(float(loss.detach().cpu()))
-        val_iou = evaluate(torch, model, val_loader, device)
+        if args.val_every > 0 and (epoch % args.val_every == 0 or epoch == args.epochs):
+            val_iou = evaluate(torch, model, val_loader, device)
+        else:
+            val_iou = best_val
         history.append({"epoch": epoch, "train_loss": mean(losses), "val_miou": val_iou})
         print(json.dumps(history[-1]), flush=True)
         if val_iou > best_val:
@@ -397,6 +408,13 @@ def main() -> None:
         "best_val_miou": best_val,
         "copy_input_size": args.copy_input_size,
         "type_source": args.type_source,
+        "val_every": args.val_every,
+        "loss_weights": {
+            "lambda_iou": args.lambda_iou,
+            "lambda_overlap": args.lambda_overlap,
+            "lambda_oob": args.lambda_oob,
+            "lambda_adj": args.lambda_adj,
+        },
         "leakage_statement": "No GT centers or GT-derived spatial edge attributes are used as model inputs.",
         "conditioning_statement": "Uses room sizes as supplied program information." if args.copy_input_size else "Predicts room sizes.",
         "history": history,
