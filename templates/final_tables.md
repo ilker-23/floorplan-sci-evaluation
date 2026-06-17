@@ -24,6 +24,8 @@ Required note:
 | Legacy GNN + program edges | Diagnostic/candidate | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Use only if leakage-free |
 | Legacy GNN + GT-spatial edges | Leakage diagnostic | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Upper-bound diagnostic only |
 | Retrained leakage-free GNN | Candidate | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Main model only if it beats baselines |
+| GATv2 complete type-pair graph | Candidate | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Use only if valid under held-out metrics |
+| GATv2 hybrid program/type graph | Candidate | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Preferred candidate if it improves topology and geometry |
 
 ## Table 3. Ablation Study
 

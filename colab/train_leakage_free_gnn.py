@@ -48,6 +48,18 @@ ROOM_TYPE_TO_ID = {
     "Other": 13,
 }
 
+FALLBACK_EDGE = 0
+PROGRAM_EDGE = 1
+TYPE_PAIR_OFFSET = 2
+
+
+def program_type_pair_offset(num_types: int) -> int:
+    return TYPE_PAIR_OFFSET + num_types * num_types
+
+
+def edge_vocab_size(num_types: int) -> int:
+    return TYPE_PAIR_OFFSET + 2 * num_types * num_types
+
 
 def import_torch_modules():
     import torch
@@ -162,9 +174,13 @@ def oob_loss(torch, boxes):
     )
 
 
-def adjacency_gap_loss(torch, boxes, edge_index):
+def adjacency_gap_loss(torch, boxes, edge_index, edge_attr, num_types: int):
     if edge_index.numel() == 0:
         return boxes.new_tensor(0.0)
+    program_mask = (edge_attr == PROGRAM_EDGE) | (edge_attr >= program_type_pair_offset(num_types))
+    if not bool(program_mask.any()):
+        return boxes.new_tensor(0.0)
+    edge_index = edge_index[:, program_mask]
     src, dst = edge_index
     b1, b2 = boxes[src], boxes[dst]
     dx = torch.abs(b1[:, 0] - b2[:, 0])
@@ -176,7 +192,15 @@ def adjacency_gap_loss(torch, boxes, edge_index):
     return (gap_x + gap_y).mean()
 
 
-def make_graph(record: dict, torch, Data, num_types: int, type_source: str, copy_input_size: bool):
+def make_graph(
+    record: dict,
+    torch,
+    Data,
+    num_types: int,
+    type_source: str,
+    copy_input_size: bool,
+    edge_mode: str,
+):
     rooms = record.get("rooms", [])
     if not rooms:
         raise ValueError(f"{record.get('plan_id')}: no rooms")
@@ -184,8 +208,10 @@ def make_graph(record: dict, torch, Data, num_types: int, type_source: str, copy
     x = []
     y = []
     input_sizes = []
+    type_ids = []
     for idx, room in enumerate(rooms):
         tid = type_id(room, num_types, type_source)
+        type_ids.append(tid)
         onehot = [0.0] * num_types
         onehot[tid] = 1.0
         cx, cy, w, h = xyxy_to_cxcywh(room["box"])
@@ -195,24 +221,47 @@ def make_graph(record: dict, torch, Data, num_types: int, type_source: str, copy
         input_sizes.append([w, h])
 
     id_to_idx = {str(room["id"]): i for i, room in enumerate(rooms)}
-    src, dst = [], []
+    program_pairs = set()
     for edge in record.get("edges", []):
         if len(edge) < 2:
             continue
         a, b = id_to_idx.get(str(edge[0])), id_to_idx.get(str(edge[1]))
         if a is None or b is None or a == b:
             continue
-        src.extend([a, b])
-        dst.extend([b, a])
+        program_pairs.add((a, b))
+        program_pairs.add((b, a))
+
+    src, dst, attrs = [], [], []
+    if edge_mode == "program_edges":
+        for a, b in sorted(program_pairs):
+            src.append(a)
+            dst.append(b)
+            attrs.append(PROGRAM_EDGE)
+    elif edge_mode in {"complete_type_pair", "hybrid_program_type"}:
+        for a in range(len(rooms)):
+            for b in range(len(rooms)):
+                if a == b:
+                    continue
+                type_pair = type_ids[a] * num_types + type_ids[b]
+                if edge_mode == "hybrid_program_type" and (a, b) in program_pairs:
+                    attr = program_type_pair_offset(num_types) + type_pair
+                else:
+                    attr = TYPE_PAIR_OFFSET + type_pair
+                src.append(a)
+                dst.append(b)
+                attrs.append(attr)
+    else:
+        raise ValueError(f"Unsupported edge_mode: {edge_mode}")
+
     if not src:
-        src, dst = [0], [0]
+        src, dst, attrs = [0], [0], [FALLBACK_EDGE]
 
     data = Data(
         x=torch.tensor(x, dtype=torch.float32),
         y=torch.tensor(y, dtype=torch.float32),
         input_sizes=torch.tensor(input_sizes, dtype=torch.float32),
         edge_index=torch.tensor([src, dst], dtype=torch.long),
-        edge_attr=torch.ones(len(src), dtype=torch.long),
+        edge_attr=torch.tensor(attrs, dtype=torch.long),
     )
     data.plan_id = record["plan_id"]
     data.record = record
@@ -220,12 +269,21 @@ def make_graph(record: dict, torch, Data, num_types: int, type_source: str, copy
     return data
 
 
-def build_model(torch, nn, F, GATv2Conv, global_mean_pool, in_dim: int, copy_input_size: bool):
+def build_model(
+    torch,
+    nn,
+    F,
+    GATv2Conv,
+    global_mean_pool,
+    in_dim: int,
+    copy_input_size: bool,
+    edge_vocab: int,
+):
     class ProgramGNN(nn.Module):
         def __init__(self):
             super().__init__()
             self.copy_input_size = copy_input_size
-            self.edge_emb = nn.Embedding(2, 24)
+            self.edge_emb = nn.Embedding(edge_vocab, 24)
             self.node = nn.Sequential(nn.Linear(in_dim, 128), nn.ReLU(), nn.Linear(128, 128))
             self.conv1 = GATv2Conv(128, 128, heads=4, concat=True, edge_dim=24)
             self.norm1 = nn.LayerNorm(512)
@@ -236,7 +294,7 @@ def build_model(torch, nn, F, GATv2Conv, global_mean_pool, in_dim: int, copy_inp
 
         def forward(self, batch):
             x = self.node(batch.x)
-            e = self.edge_emb(batch.edge_attr.clamp(0, 1))
+            e = self.edge_emb(batch.edge_attr.clamp(0, self.edge_emb.num_embeddings - 1))
             h = F.elu(self.norm1(self.conv1(x, batch.edge_index, edge_attr=e)))
             h = F.elu(self.norm2(self.conv2(h, batch.edge_index, edge_attr=e))) + h
             g = self.g(global_mean_pool(h, batch.batch))
@@ -307,7 +365,7 @@ def export_predictions(torch, model, records, graphs, Batch, device, output_json
                     {
                         "plan_id": record["plan_id"],
                         "family_id": record.get("family_id"),
-                        "model_method": "leakage_free_program_gnn",
+                        "model_method": getattr(model, "model_method", "leakage_free_program_gnn"),
                         "rooms": pred_rooms,
                         "edges": record.get("edges", []),
                     }
@@ -330,6 +388,12 @@ def main() -> None:
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--num-types", type=int, default=8)
     ap.add_argument("--type-source", choices=["order", "type_id", "type_name"], default="order")
+    ap.add_argument(
+        "--edge-mode",
+        choices=["program_edges", "complete_type_pair", "hybrid_program_type"],
+        default="program_edges",
+        help="Leakage-free message-passing graph. Hybrid keeps type-pair context and marks program edges separately.",
+    )
     ap.add_argument("--copy-input-size", action="store_true", default=True)
     ap.add_argument("--predict-size", dest="copy_input_size", action="store_false")
     ap.add_argument("--lambda-iou", type=float, default=1.0)
@@ -358,15 +422,25 @@ def main() -> None:
         val_records = val_records[: args.limit_val]
 
     train_graphs = [
-        make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in train_records
+        make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size, args.edge_mode)
+        for r in train_records
     ]
-    val_graphs = [make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in val_records]
-    test_graphs = [make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size) for r in test_records]
+    val_graphs = [
+        make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size, args.edge_mode)
+        for r in val_records
+    ]
+    test_graphs = [
+        make_graph(r, torch, Data, args.num_types, args.type_source, args.copy_input_size, args.edge_mode)
+        for r in test_records
+    ]
 
     in_dim = args.num_types + 4
-    model = build_model(torch, nn, F, GATv2Conv, global_mean_pool, in_dim, args.copy_input_size).to(device)
     if args.export_only:
         ck = load_checkpoint(torch, args.checkpoint_out, device)
+        ck_edge_emb = ck.get("model", {}).get("edge_emb.weight")
+        ck_edge_vocab = ck_edge_emb.shape[0] if ck_edge_emb is not None else edge_vocab_size(args.num_types)
+        model = build_model(torch, nn, F, GATv2Conv, global_mean_pool, in_dim, args.copy_input_size, ck_edge_vocab).to(device)
+        model.model_method = f"leakage_free_gatv2_{args.edge_mode}"
         model.load_state_dict(ck["model"])
         export_predictions(torch, model, test_records, test_graphs, Batch, device, args.output_jsonl, args.batch_size)
         summary = {
@@ -380,6 +454,7 @@ def main() -> None:
             "checkpoint_best_val_miou": ck.get("best_val_miou"),
             "copy_input_size": args.copy_input_size,
             "type_source": args.type_source,
+            "edge_mode": args.edge_mode,
             "leakage_statement": "No GT centers or GT-derived spatial edge attributes are used as model inputs.",
             "conditioning_statement": "Uses room sizes as supplied program information."
             if args.copy_input_size
@@ -391,6 +466,17 @@ def main() -> None:
         print(json.dumps(summary, indent=2))
         return
 
+    model = build_model(
+        torch,
+        nn,
+        F,
+        GATv2Conv,
+        global_mean_pool,
+        in_dim,
+        args.copy_input_size,
+        edge_vocab_size(args.num_types),
+    ).to(device)
+    model.model_method = f"leakage_free_gatv2_{args.edge_mode}"
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
     train_loader = DataLoader(train_graphs, batch_size=args.batch_size, shuffle=True, collate_fn=Batch.from_data_list)
@@ -411,7 +497,11 @@ def main() -> None:
             liou = 1.0 - box_iou_cxcywh(torch, pred, batch.y).mean()
             lov = overlap_loss(torch, pred, batch.batch) if args.lambda_overlap else zero_loss_like(pred)
             loob = oob_loss(torch, pred) if args.lambda_oob else zero_loss_like(pred)
-            ladj = adjacency_gap_loss(torch, pred, batch.edge_index) if args.lambda_adj else zero_loss_like(pred)
+            ladj = (
+                adjacency_gap_loss(torch, pred, batch.edge_index, batch.edge_attr, args.num_types)
+                if args.lambda_adj
+                else zero_loss_like(pred)
+            )
             loss = l1 + args.lambda_iou * liou + args.lambda_overlap * lov + args.lambda_oob * loob + args.lambda_adj * ladj
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -455,6 +545,7 @@ def main() -> None:
         "best_val_miou": best_val,
         "copy_input_size": args.copy_input_size,
         "type_source": args.type_source,
+        "edge_mode": args.edge_mode,
         "val_every": args.val_every,
         "loss_weights": {
             "lambda_iou": args.lambda_iou,

@@ -82,6 +82,25 @@ The 24-48 hour rescue package must contain:
 9. Random qualitative grid including good, median, and poor cases.
 10. Failure-mode table with explicit causes and planned mitigation.
 
+## GNN_GANv3-Inspired Model Candidate
+
+The useful idea from `GNN_GANv3.ipynb` is not the raster Pix2Pix stage. The
+useful idea is a leakage-free GATv2 graph with type-pair edge embeddings.
+
+Test it in two forms:
+
+- `complete_type_pair`: every directed room pair is connected and receives an
+  edge embedding based on `(source_type, target_type)`;
+- `hybrid_program_type`: every directed room pair receives type-pair context,
+  while user/program adjacency edges are explicitly marked.
+
+The hybrid form is more defensible because it keeps the design-program graph
+visible. The complete form is a diagnostic for whether richer room-relation
+message passing helps geometry at all.
+
+Do not apply adjacency/contact loss to all complete graph edges. Only
+program-marked edges should be treated as required adjacency.
+
 ## Decision Rule
 
 If the leakage-free model does not beat the in-house baselines, do not frame the

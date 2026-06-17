@@ -27,6 +27,8 @@ Do not claim:
 | Legacy GNN with GT-spatial edges | diagnostic | TBD | TBD | TBD | TBD | TBD | TBD | leakage diagnostic only |
 | Legacy GNN with program edges | diagnostic/candidate | TBD | TBD | TBD | TBD | TBD | TBD | only if leakage-free |
 | Retrained leakage-free GNN | candidate | TBD | TBD | TBD | TBD | TBD | TBD | main model if it beats baseline |
+| GATv2 complete type-pair graph | candidate | TBD | TBD | TBD | TBD | TBD | TBD | use if it beats baselines without topology collapse |
+| GATv2 hybrid program/type graph | candidate | TBD | TBD | TBD | TBD | TBD | TBD | strongest candidate if both mIoU and topology improve |
 
 ## Minimum Qualitative Figure
 

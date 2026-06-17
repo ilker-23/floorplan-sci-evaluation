@@ -77,6 +77,19 @@ Required first models:
 5. Legacy notebook checkpoint with GT-spatial edges, leakage diagnostic only.
 6. Retrained leakage-free GNN candidate.
 
+Recommended GATv2 edge-mode sweep:
+
+1. `program_edges`: strict program graph only, current reference.
+2. `complete_type_pair`: GNN_GANv3-style full room graph with type-pair edge
+   embeddings; use this to test whether richer leakage-free message passing
+   helps placement.
+3. `hybrid_program_type`: complete type-pair graph plus explicit program-edge
+   marking; this is the strongest publishable candidate if it improves both
+   mIoU and topology.
+
+Important: adjacency loss is applied only to program-marked edges. Complete
+type-pair edges provide context; they must not force every room pair to touch.
+
 ## Step 4: Run Layout Metrics
 
 Example:
@@ -144,3 +157,53 @@ python scripts/build_review_evidence_pack.py \
 ```
 
 Only rows marked as candidate evidence can support the main model claim.
+
+## Step 9: Run the GNN_GANv3-Inspired Edge Sweep
+
+Fast diagnostic for the complete type-pair graph:
+
+```bash
+python colab/train_leakage_free_gnn.py \
+  --train-jsonl /content/drive/MyDrive/SASA-GAN_Buildings/outputs/train_ground_truth.jsonl \
+  --val-jsonl /content/drive/MyDrive/SASA-GAN_Buildings/outputs/val_ground_truth.jsonl \
+  --test-jsonl /content/drive/MyDrive/SASA-GAN_Buildings/outputs/test_ground_truth.jsonl \
+  --checkpoint-out /content/drive/MyDrive/SASA-GAN_Buildings/checkpoints/leakage_free_gatv2_complete_type_pair_best.pt \
+  --output-jsonl /content/drive/MyDrive/SASA-GAN_Buildings/outputs/model_predictions/leakage_free_gatv2_complete_type_pair_predictions.jsonl \
+  --summary-json /content/drive/MyDrive/SASA-GAN_Buildings/reports/model_predictions/leakage_free_gatv2_complete_type_pair_train_summary.json \
+  --epochs 20 \
+  --batch-size 256 \
+  --type-source order \
+  --edge-mode complete_type_pair \
+  --copy-input-size \
+  --limit-train 24000 \
+  --limit-val 2000 \
+  --val-every 2 \
+  --lambda-iou 1.0 \
+  --lambda-overlap 2.0 \
+  --lambda-adj 0.0 \
+  --lambda-oob 1.0
+```
+
+Fast diagnostic for the hybrid graph:
+
+```bash
+python colab/train_leakage_free_gnn.py \
+  --train-jsonl /content/drive/MyDrive/SASA-GAN_Buildings/outputs/train_ground_truth.jsonl \
+  --val-jsonl /content/drive/MyDrive/SASA-GAN_Buildings/outputs/val_ground_truth.jsonl \
+  --test-jsonl /content/drive/MyDrive/SASA-GAN_Buildings/outputs/test_ground_truth.jsonl \
+  --checkpoint-out /content/drive/MyDrive/SASA-GAN_Buildings/checkpoints/leakage_free_gatv2_hybrid_program_type_best.pt \
+  --output-jsonl /content/drive/MyDrive/SASA-GAN_Buildings/outputs/model_predictions/leakage_free_gatv2_hybrid_program_type_predictions.jsonl \
+  --summary-json /content/drive/MyDrive/SASA-GAN_Buildings/reports/model_predictions/leakage_free_gatv2_hybrid_program_type_train_summary.json \
+  --epochs 20 \
+  --batch-size 256 \
+  --type-source order \
+  --edge-mode hybrid_program_type \
+  --copy-input-size \
+  --limit-train 24000 \
+  --limit-val 2000 \
+  --val-every 2 \
+  --lambda-iou 1.0 \
+  --lambda-overlap 2.0 \
+  --lambda-adj 1.0 \
+  --lambda-oob 1.0
+```
